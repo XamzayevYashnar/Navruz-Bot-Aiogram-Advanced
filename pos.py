@@ -184,11 +184,20 @@ class PosClient:
 
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 # Tarmoq uzildi — ortib boruvchi kutish bilan qayta urinamiz.
+                # DIQQAT: bu xatoning str() ko'rinishi ko'pincha bo'sh chiqadi
+                # (masalan ClientConnectorError), shuning uchun asl sababni
+                # (__cause__ / os_error) ham loglaymiz — aks holda nima
+                # buzilganini aniqlab bo'lmaydi.
+                cause = getattr(e, "__cause__", None) or getattr(e, "os_error", None)
+                detail = f"{type(e).__name__}: {e!r}"
+                if cause is not None:
+                    detail += f" | sabab: {type(cause).__name__}: {cause!r}"
                 if attempt == NETWORK_RETRIES:
-                    log.error("%s: %s urinishdan keyin ham ulanib bo'lmadi (%s)", path, attempt, e)
+                    log.error("%s: URL=%s | %s urinishdan keyin ham ulanib bo'lmadi (%s)",
+                              path, url, attempt, detail)
                     return None
                 wait = 2 ** (attempt - 1)
-                log.warning("%s: ulanish xatosi (%s), %s soniyadan keyin qayta...", path, e, wait)
+                log.warning("%s: ulanish xatosi (%s), %s soniyadan keyin qayta...", path, detail, wait)
                 await asyncio.sleep(wait)
             except Exception as e:
                 log.exception("%s: kutilmagan xato: %s", path, e)
